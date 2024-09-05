@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Card,
@@ -10,9 +13,62 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PROPOSALS } from "@/lib/constants";
-
+import UserInfo from "@/components/UserInfo";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { Transaction, SystemProgram, PublicKey } from "@solana/web3.js";
+import toast from "react-hot-toast";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { useConnection } from "@solana/wallet-adapter-react";
 
 export function Vote() {
+  const { publicKey, sendTransaction, connected } = useWallet();
+  const { connection } = useConnection();
+  const { setVisible } = useWalletModal();
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [walletConnected, setWalletConnected] = useState(false);
+
+  useEffect(() => {
+    if (connected && isConnecting) {
+      toast.success("Wallet connected successfully!");
+      console.log("Wallet connected:", publicKey?.toString());
+      setWalletConnected(true);
+      setIsConnecting(false);
+    }
+  }, [connected, publicKey, isConnecting]);
+
+  const handleVote = async (vote: "yes" | "no") => {
+    if (!connected) {
+      setIsConnecting(true);
+      setVisible(true);
+      return;
+    }
+
+    if (!publicKey) {
+      console.error("Public key is not available.");
+      toast.error("Failed to connect wallet.");
+      return;
+    }
+
+    try {
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: publicKey,
+          toPubkey: new PublicKey(
+            "2ihLAUSUB5jzD3StyxB33azpZc5jhiRoA5a5wHuPBnyX"
+          ),
+          lamports: 1000000,
+        })
+      );
+
+      const signature = await sendTransaction(transaction, connection);
+      await connection.confirmTransaction(signature);
+      toast.success(`Vote ${vote} cast successfully!`);
+    } catch (error) {
+      console.error("Error casting vote:", error);
+      toast.error("Failed to cast vote.");
+    }
+  };
+
   return (
     <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-8">
       <div className="flex justify-center items-center mb-6">
@@ -39,9 +95,7 @@ export function Vote() {
             {PROPOSALS.map((proposal) => (
               <Card key={proposal.id} className="p-4">
                 <CardFooter className="flex items-center justify-between">
-                  <CardTitle className="text-left">
-                    {proposal.name}
-                  </CardTitle>
+                  <CardTitle className="text-left">{proposal.name}</CardTitle>
                   <Badge variant="outline" className="bg-green-500 text-white">
                     {proposal.status}
                   </Badge>
@@ -57,11 +111,19 @@ export function Vote() {
                     <span>{proposal.approved}% Approved</span>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleVote("yes")}
+                    >
                       <ThumbsUpIcon className="w-5 h-5 mr-3 text-green-500" />{" "}
                       Vote Yes
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleVote("no")}
+                    >
                       <ThumbsDownIcon className="w-5 h-5 mr-3 text-red-500" />{" "}
                       Vote No
                     </Button>
@@ -140,6 +202,7 @@ export function Vote() {
           </div>
         </TabsContent>
       </Tabs>
+      <UserInfo />
     </div>
   );
 }
