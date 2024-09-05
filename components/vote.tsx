@@ -9,6 +9,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { PROPOSALS } from "@/lib/constants";
+
 
 export function Vote() {
   return (
@@ -34,74 +36,39 @@ export function Vote() {
         </TabsList>
         <TabsContent value="proposals" className="py-6">
           <div className="grid gap-6">
-            <Card className="p-4">
-              <CardFooter className="flex items-center justify-between">
-                <CardTitle className="text-left">
-                  Implement Decentralized{" "}
-                </CardTitle>
-                <Badge variant="outline" className="bg-green-500 text-white">
-                  Active
-                </Badge>
-              </CardFooter>
-              <CardContent className="py-2">
-                {" "}
-                <p className="text-muted-foreground">
-                  Proposal to transition the platform to a decentralized
-                  governance model, allowing token holders to participate in key
-                  decisions.
-                </p>
-              </CardContent>
-              <CardFooter className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ThumbsUpIcon className="w-5 h-5 text-green-500" />
-                  <span>78% Approved</span>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm">
-                    <ThumbsUpIcon className="w-5 h-5 mr-3 text-green-500" />{" "}
-                    Vote Yes
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <ThumbsDownIcon className="w-5 h-5 mr-3 text-red-500" />{" "}
-                    Vote No
-                  </Button>
-                </div>
-              </CardFooter>
-            </Card>
-
-            <Card className="p-4">
-              <CardFooter className="flex items-center justify-between">
-                <CardTitle className="text-left">
-                  Expand to New Regions{" "}
-                </CardTitle>
-                <Badge variant="outline" className="bg-green-500 text-white">
-                  Active
-                </Badge>
-              </CardFooter>
-              <CardContent className="py-2">
-                {" "}
-                <p className="text-muted-foreground">
-                  Proposal to expand the platform's services to new regions,
-                  increasing global accessibility and user base.
-                </p>
-              </CardContent>
-              <CardFooter className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ThumbsUpIcon className="w-5 h-5 text-green-500" />
-                  <span>82% Approved</span>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm">
-                    <ThumbsUpIcon className="w-5 h-5 mr-3 text-green-500" />{" "}
-                    Vote Yes
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <ThumbsDownIcon className="w-5 h-5 mr-3 text-red-500" />{" "}
-                    Vote No
-                  </Button>
-                </div>
-              </CardFooter>
-            </Card>
+            {PROPOSALS.map((proposal) => (
+              <Card key={proposal.id} className="p-4">
+                <CardFooter className="flex items-center justify-between">
+                  <CardTitle className="text-left">
+                    {proposal.name}
+                  </CardTitle>
+                  <Badge variant="outline" className="bg-green-500 text-white">
+                    {proposal.status}
+                  </Badge>
+                </CardFooter>
+                <CardContent className="py-2">
+                  <p className="text-muted-foreground">
+                    {proposal.description}
+                  </p>
+                </CardContent>
+                <CardFooter className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ThumbsUpIcon className="w-5 h-5 text-green-500" />
+                    <span>{proposal.approved}% Approved</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm">
+                      <ThumbsUpIcon className="w-5 h-5 mr-3 text-green-500" />{" "}
+                      Vote Yes
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      <ThumbsDownIcon className="w-5 h-5 mr-3 text-red-500" />{" "}
+                      Vote No
+                    </Button>
+                  </div>
+                </CardFooter>
+              </Card>
+            ))}
           </div>
         </TabsContent>
         <TabsContent value="voters" className="py-6">
