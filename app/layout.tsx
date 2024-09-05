@@ -27,8 +27,8 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "https://trusted-stat-others-infrared.trycloudflare.com/og.png",
-        alt: "DiscDao OG Image",
+        url: "https://discdao.vercel.app/og.png",
+        alt: "DiscDao",
         width: 1200,
         height: 630,
       },
@@ -37,8 +37,7 @@ export const metadata: Metadata = {
 
   other: {
     "dscvr:canvas:version": "vNext",
-    "og:image":
-      "https://trusted-stat-others-infrared.trycloudflare.com/og.png",
+    "og:image": "https://discdao.vercel.app//og.png",
   },
 };
 
