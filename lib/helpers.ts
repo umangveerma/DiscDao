@@ -6,12 +6,13 @@ import {
   fetchAssetsByCollection,
 } from "@metaplex-foundation/mpl-core";
 import axios from "axios";
+import { createSignerFromKeypair } from "@metaplex-foundation/umi";
 import { generateSigner, PublicKey, Umi } from "@metaplex-foundation/umi";
 import { base58 } from "@metaplex-foundation/umi/serializers";
 import { collectionAddress } from "@/lib/constants";
 
 export const uploadJsonData = async (data: Object) => {
-  const response = await fetch("/api/", {
+  const response = await fetch("/api", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -37,13 +38,24 @@ export const mintNft = async (
     const collection = await fetchCollection(umi, collectionAddress);
     const assetSigner = generateSigner(umi);
 
+    const collectionAuthoritySigner = createSignerFromKeypair(
+      umi,
+      umi.eddsa.createKeypairFromSecretKey(
+        base58.serialize(process.env.COLLECTION_AUTHORITY_SECRET_KEY!)
+      )
+    );
+
     console.log("mintAddress:", assetSigner.publicKey.toString());
+    console.log("payer:", umi.payer.publicKey.toString());
 
     const res = await create(umi, {
       asset: assetSigner,
       collection: collection,
+      payer: umi.payer,
+      owner: umi.payer.publicKey,
       name: username,
       uri: metadataUri,
+      authority: collectionAuthoritySigner,
       plugins: [
         {
           type: "PermanentFreezeDelegate",
@@ -115,7 +127,7 @@ export const fetchNftsHandler = async (
 export const createUser = async (
   umi: Umi,
   username: string,
-  vote: number,
+  vote: string,
   vote_value: string,
   avatar: string
 ) => {

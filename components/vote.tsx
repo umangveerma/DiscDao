@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PROPOSALS } from "@/lib/constants";
 import UserInfo from "@/components/UserInfo";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { walletAdapterIdentity } from "@metaplex-foundation/umi-signer-wallet-adapters";
 import toast from "react-hot-toast";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
@@ -25,7 +25,6 @@ import { createUser } from "@/lib/helpers";
 export function Vote() {
   const { user } = useCanvas();
   const { publicKey, wallet, connected } = useWallet();
-  const { connection } = useConnection();
   const { setVisible } = useWalletModal();
   const [isConnecting, setIsConnecting] = useState(false);
   const [walletConnected, setWalletConnected] = useState(false);
@@ -52,10 +51,10 @@ export function Vote() {
       return;
     }
 
-    //  if (!user) {
-    //    toast.error("DSCVR user not found.");
-    //    return;
-    //  }
+    if (!user) {
+      toast.error("DSCVR user not found.");
+      return;
+    }
 
     const umi = umiInstance.use(walletAdapterIdentity(wallet!.adapter));
 
@@ -66,10 +65,10 @@ export function Vote() {
       // this function gives new NFT to user with first vote data
       const mint = await createUser(
         umi,
-        "umang", //  user.username,
-        vote,
+        user.username,
+        vote.toString(),
         vote_value,
-        "https://ipfs.dscvr.one/b2801e07-5fcb-486b-8149-9ee1b66f840b-bucket/lzhif9rwapy4uirzya.png" //  user.avatar!
+        user.avatar!
       );
 
       console.log("vote casted successfully:", mint);
