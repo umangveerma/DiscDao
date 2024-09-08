@@ -9,11 +9,22 @@ import axios from "axios";
 import { generateSigner, PublicKey, Umi } from "@metaplex-foundation/umi";
 import { base58 } from "@metaplex-foundation/umi/serializers";
 import { collectionAddress } from "@/lib/constants";
-import { twStorage } from "@/lib/utils";
 
 export const uploadJsonData = async (data: Object) => {
-  const schema = await twStorage.upload(data);
-  return twStorage.resolveScheme(schema);
+  const response = await fetch("/api/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to upload JSON data");
+  }
+
+  const result = await response.json();
+  return result.url;
 };
 
 export const mintNft = async (
@@ -25,6 +36,8 @@ export const mintNft = async (
   try {
     const collection = await fetchCollection(umi, collectionAddress);
     const assetSigner = generateSigner(umi);
+
+    console.log("mintAddress:", assetSigner.publicKey.toString());
 
     const res = await create(umi, {
       asset: assetSigner,
@@ -38,6 +51,8 @@ export const mintNft = async (
         },
       ],
     }).sendAndConfirm(umi);
+
+    console.log("mint tx:", base58.deserialize(res.signature)[0]);
 
     return {
       signature: base58.deserialize(res.signature)[0],
@@ -105,12 +120,6 @@ export const createUser = async (
   avatar: string
 ) => {
   try {
-    // const collectionImageCid = await uploadImage(avatar);
-    // const cid = collectionImageCid
-    //   .split("https://ff3096a0ee21aa75ccaa059a764cdc0e.ipfscdn.io/ipfs/")[1]
-    //   .split("/")[0];
-    // const cfIpfsGatewayUrl = `https://${cid}.ipfs.cf-ipfs.com/0`;
-
     const nftMetadataCid = await uploadJsonData({
       name: username,
       image: avatar,
@@ -129,6 +138,8 @@ export const createUser = async (
         category: null,
       },
     });
+
+    console.log("metadata url:", nftMetadataCid);
 
     const mintNftRes = await mintNft(
       umi,
