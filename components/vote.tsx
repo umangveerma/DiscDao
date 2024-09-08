@@ -18,7 +18,7 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { walletAdapterIdentity } from "@metaplex-foundation/umi-signer-wallet-adapters";
 import toast from "react-hot-toast";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
+import { umiInstance } from "@/lib/utils";
 import { useCanvas } from "@/hooks/useCanvas";
 import { createUser } from "@/lib/helpers";
 import "dotenv/config";
@@ -58,9 +58,7 @@ export function Vote() {
       return;
     }
 
-    const umi = createUmi(process.env.RPC_URL!, {
-      commitment: "confirmed",
-    }).use(walletAdapterIdentity(wallet!.adapter));
+    const umi = umiInstance.use(walletAdapterIdentity(wallet!.adapter));
 
     try {
       //TO DO check if user already has the souldbound NFT
