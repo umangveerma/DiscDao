@@ -1,3 +1,5 @@
+import { publicKey } from "@metaplex-foundation/umi";
+
 export const PROPOSALS = [
   {
     id: 1,
@@ -18,3 +20,7 @@ export const PROPOSALS = [
     approved: 0,
   },
 ];
+
+export const collectionAddress = publicKey(
+  "3zwaQAecf9tYkWgKVEmcwxPceXetyWgzQHtpJUa4b2Qb"
+);

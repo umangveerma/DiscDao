@@ -14,14 +14,18 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PROPOSALS } from "@/lib/constants";
 import UserInfo from "@/components/UserInfo";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { Transaction, SystemProgram, PublicKey } from "@solana/web3.js";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { walletAdapterIdentity } from "@metaplex-foundation/umi-signer-wallet-adapters";
 import toast from "react-hot-toast";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { useConnection } from "@solana/wallet-adapter-react";
+import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
+import { useCanvas } from "@/hooks/useCanvas";
+import { createUser } from "@/lib/helpers";
+import "dotenv/config";
 
 export function Vote() {
-  const { publicKey, sendTransaction, connected } = useWallet();
+  const { user } = useCanvas();
+  const { publicKey, wallet, connected } = useWallet();
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
   const [isConnecting, setIsConnecting] = useState(false);
@@ -36,7 +40,7 @@ export function Vote() {
     }
   }, [connected, publicKey, isConnecting]);
 
-  const handleVote = async (vote: "yes" | "no") => {
+  const handleVote = async (vote: number, vote_value: string) => {
     if (!connected) {
       setIsConnecting(true);
       setVisible(true);
@@ -49,20 +53,30 @@ export function Vote() {
       return;
     }
 
+    if (!user) {
+      toast.error("DSCVR user not found.");
+      return;
+    }
+
+    const umi = createUmi(process.env.RPC_URL!, {
+      commitment: "confirmed",
+    }).use(walletAdapterIdentity(wallet!.adapter));
+
     try {
-      const transaction = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: new PublicKey(
-            "2ihLAUSUB5jzD3StyxB33azpZc5jhiRoA5a5wHuPBnyX"
-          ),
-          lamports: 1000000,
-        })
+      //TO DO check if user already has the souldbound NFT
+      //TO DO check if user has already voted on this proposal
+
+      // this function gives new NFT to user with first vote data
+      const mint = await createUser(
+        umi,
+        user.username,
+        vote,
+        vote_value,
+        user.avatar!
       );
 
-      const signature = await sendTransaction(transaction, connection);
-      await connection.confirmTransaction(signature);
-      toast.success(`Vote ${vote} cast successfully!`);
+      console.log("vote casted successfully:", mint);
+      toast.success("vote casted successfully!");
     } catch (error) {
       console.error("Error casting vote:", error);
       toast.error("Failed to cast vote.");
@@ -114,7 +128,7 @@ export function Vote() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleVote("yes")}
+                      onClick={() => handleVote(proposal.id, "yes")}
                     >
                       <ThumbsUpIcon className="w-5 h-5 mr-3 text-green-500" />{" "}
                       Vote Yes
@@ -122,7 +136,7 @@ export function Vote() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleVote("no")}
+                      onClick={() => handleVote(proposal.id, "no")}
                     >
                       <ThumbsDownIcon className="w-5 h-5 mr-3 text-red-500" />{" "}
                       Vote No
