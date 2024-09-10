@@ -56,6 +56,17 @@ async function updateMetadata(
   return metadata;
 }
 
+async function getAuthSigner(): Promise<string> {
+  const response = await fetch("/api/collection-auth", {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to get auth signer public key");
+  }
+  const data = await response.json();
+  return data.key;
+}
+
 export const uploadJsonData = async (data: Object) => {
   const response = await fetch("/api", {
     method: "POST",
@@ -72,17 +83,6 @@ export const uploadJsonData = async (data: Object) => {
   const result = await response.json();
   return result.url;
 };
-
-async function getAuthSigner(): Promise<string> {
-  const response = await fetch("/api/collection-auth", {
-    method: "POST",
-  });
-  if (!response.ok) {
-    throw new Error("Failed to get auth signer public key");
-  }
-  const data = await response.json();
-  return data.key;
-}
 
 export const fetchNftsByOwner = async (umi: Umi, owner: SolanaPublicKey) => {
   const assets = await fetchAssetsWithRateLimit(umi, collectionAddress);
@@ -273,7 +273,7 @@ export const updateUser = async (
     throw new Error("Failed to update user");
   }
 };
-// Helper function for proposal approval percentage
+
 export async function getProposalApprovalPercentage(
   umi: Umi,
   proposalId: string
