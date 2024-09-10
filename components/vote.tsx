@@ -20,7 +20,12 @@ import toast from "react-hot-toast";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { umiInstance } from "@/lib/utils";
 import { useCanvas } from "@/hooks/useCanvas";
-import { createUser } from "@/lib/helpers";
+import {
+  createUser,
+  updateUser,
+  fetchNftsByOwner,
+  hasUserVotedOnProposal,
+} from "@/lib/helpers";
 
 export function Vote() {
   const { user } = useCanvas();
@@ -51,28 +56,48 @@ export function Vote() {
       return;
     }
 
-    if (!user) {
-      toast.error("DSCVR user not found.");
-      return;
-    }
+    // if (!user) {
+    //   toast.error("DSCVR user not found.");
+    //   return;
+    // }
 
     const umi = umiInstance.use(walletAdapterIdentity(wallet!.adapter));
 
     try {
-      //TO DO check if user already has the souldbound NFT
-      //TO DO check if user has already voted on this proposal
+      const nfts = await fetchNftsByOwner(umi, publicKey);
+      console.log("nfts", nfts);
 
-      // this function gives new NFT to user with first vote data
-      const mint = await createUser(
-        umi,
-        user.username,
-        vote.toString(),
-        vote_value,
-        user.avatar!
-      );
+      const proposalIndex = vote.toString();
+      if (nfts.length === 0) {
+        const mint = await createUser(
+          umi,
+          "test", //  user.username,
+          proposalIndex,
+          vote_value,
+          "https://ipfs.dscvr.one/b2801e07-5fcb-486b-8149-9ee1b66f840b-bucket/lzhif9rwapy4uirzya.png" //  user.avatar!
+        );
 
-      console.log("vote casted successfully:", mint);
-      toast.success("vote casted successfully!");
+        console.log("vote casted successfully:", mint);
+        toast.success("vote casted successfully!");
+      } else {
+        const hasVoted = await hasUserVotedOnProposal(nfts, proposalIndex);
+
+        if (hasVoted) {
+          toast.error("You have already voted on this proposal");
+        } else {
+          const signature = await updateUser(
+            umi,
+            nfts[0],
+            proposalIndex,
+            vote_value
+          );
+          console.log(
+            "vote casted successfully! Transaction signature:",
+            signature
+          );
+          toast.success("vote casted successfully!");
+        }
+      }
     } catch (error) {
       console.error("Error casting vote:", error);
       toast.error("Failed to cast vote.");

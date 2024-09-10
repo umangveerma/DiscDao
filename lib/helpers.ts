@@ -2,14 +2,31 @@ import {
   create,
   fetchCollection,
   fetchAsset,
+  AssetV1,
   update,
   fetchAssetsByCollection,
 } from "@metaplex-foundation/mpl-core";
 import axios from "axios";
-import { createSignerFromKeypair } from "@metaplex-foundation/umi";
-import { generateSigner, PublicKey, Umi } from "@metaplex-foundation/umi";
+import {
+  generateSigner,
+  Umi,
+  PublicKey,
+  createSignerFromKeypair,
+} from "@metaplex-foundation/umi";
 import { base58 } from "@metaplex-foundation/umi/serializers";
+import { PublicKey as SolanaPublicKey } from "@solana/web3.js";
 import { collectionAddress } from "@/lib/constants";
+
+async function getAuthSigner(): Promise<string> {
+  const response = await fetch("/api/collection-auth", {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to get auth signer public key");
+  }
+  const data = await response.json();
+  return data.key;
+}
 
 export const uploadJsonData = async (data: Object) => {
   const response = await fetch("/api", {
@@ -38,11 +55,10 @@ export const mintNft = async (
     const collection = await fetchCollection(umi, collectionAddress);
     const assetSigner = generateSigner(umi);
 
+    const authSigner = await getAuthSigner();
     const collectionAuthoritySigner = createSignerFromKeypair(
       umi,
-      umi.eddsa.createKeypairFromSecretKey(
-        base58.serialize(process.env.COLLECTION_AUTHORITY_SECRET_KEY!)
-      )
+      umi.eddsa.createKeypairFromSecretKey(base58.serialize(authSigner))
     );
 
     console.log("mintAddress:", assetSigner.publicKey.toString());
@@ -62,7 +78,11 @@ export const mintNft = async (
           frozen: true,
         },
       ],
-    }).sendAndConfirm(umi);
+    }).sendAndConfirm(umi, {
+      confirm: {
+        commitment: "confirmed",
+      },
+    });
 
     console.log("mint tx:", base58.deserialize(res.signature)[0]);
 
@@ -84,11 +104,17 @@ export const updateNft = async (
   try {
     const collection = await fetchCollection(umi, collectionAddress);
     const asset = await fetchAsset(umi, assetAddress);
-
+    const authSigner = await getAuthSigner();
+    const collectionAuthoritySigner = createSignerFromKeypair(
+      umi,
+      umi.eddsa.createKeypairFromSecretKey(base58.serialize(authSigner))
+    );
     const res = await update(umi, {
       asset: asset,
+      name: asset.name,
       collection: collection,
       uri: metadataUri,
+      authority: collectionAuthoritySigner,
     }).sendAndConfirm(umi);
 
     return {
@@ -124,10 +150,23 @@ export const fetchNftsHandler = async (
   }
 };
 
+export const fetchNftsByOwner = async (umi: Umi, owner: SolanaPublicKey) => {
+  const assets = await fetchAssetsByCollection(umi, collectionAddress);
+  const ownerAssets: AssetV1[] = [];
+
+  assets.forEach((asset) => {
+    if (asset.owner.toString() == owner.toString()) {
+      ownerAssets.push(asset);
+    }
+  });
+
+  return ownerAssets;
+};
+
 export const createUser = async (
   umi: Umi,
   username: string,
-  vote: string,
+  proposal_index: string,
   vote_value: string,
   avatar: string
 ) => {
@@ -137,7 +176,7 @@ export const createUser = async (
       image: avatar,
       attributes: [
         {
-          [vote]: vote_value,
+          [proposal_index]: vote_value,
         },
       ],
       properties: {
@@ -164,5 +203,76 @@ export const createUser = async (
   } catch (err) {
     console.log(err);
     throw new Error("TX creation failed");
+  }
+};
+
+export const hasUserVotedOnProposal = async (
+  nfts: AssetV1[],
+  proposalIndex: string
+): Promise<boolean> => {
+  if (nfts.length === 0) return false;
+
+  const nft = nfts[0];
+  try {
+    const response = await axios.get(nft.uri);
+    const metadata = response.data;
+
+    if (metadata.attributes && Array.isArray(metadata.attributes)) {
+      return metadata.attributes.some((attr: any) =>
+        attr.hasOwnProperty(proposalIndex)
+      );
+    }
+  } catch (error) {
+    console.error("Error fetching NFT metadata:", error);
+  }
+
+  return false;
+};
+
+async function updateMetadata(
+  uri: string,
+  proposalIndex: string,
+  voteValue: string
+) {
+  const response = await axios.get(uri);
+  const metadata = response.data;
+
+  if (!metadata.attributes) {
+    metadata.attributes = [];
+  }
+
+  metadata.attributes.push({ [proposalIndex]: voteValue });
+
+  return metadata;
+}
+
+export const updateUser = async (
+  umi: Umi,
+  nft: AssetV1,
+  proposalIndex: string,
+  voteValue: string
+): Promise<string> => {
+  try {
+    const updatedMetadata = await updateMetadata(
+      nft.uri,
+      proposalIndex,
+      voteValue
+    );
+
+    const newMetadataUri = await uploadJsonData(updatedMetadata);
+
+    console.log("new metadata uri:", newMetadataUri);
+
+    const updateResult = await updateNft(
+      umi,
+      collectionAddress,
+      nft.publicKey as PublicKey,
+      newMetadataUri
+    );
+
+    return updateResult.signature;
+  } catch (error) {
+    console.error("Error updating user:", error);
+    throw new Error("Failed to update user");
   }
 };
