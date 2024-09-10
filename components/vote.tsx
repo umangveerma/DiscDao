@@ -56,10 +56,10 @@ export function Vote() {
       return;
     }
 
-    if (!user) {
-      toast.error("DSCVR user not found.");
-      return;
-    }
+    // if (!user) {
+    //   toast.error("DSCVR user not found.");
+    //   return;
+    // }
 
     const umi = umiInstance.use(walletAdapterIdentity(wallet!.adapter));
 
@@ -71,10 +71,10 @@ export function Vote() {
       if (nfts.length === 0) {
         const mint = await createUser(
           umi,
-          user.username,
+          "test", //  user.username,
           proposalIndex,
           vote_value,
-          user.avatar!
+          "https://ipfs.dscvr.one/b2801e07-5fcb-486b-8149-9ee1b66f840b-bucket/lzhif9rwapy4uirzya.png" //  user.avatar!
         );
 
         console.log("vote casted successfully:", mint);

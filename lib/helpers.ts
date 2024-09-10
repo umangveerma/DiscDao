@@ -7,11 +7,26 @@ import {
   fetchAssetsByCollection,
 } from "@metaplex-foundation/mpl-core";
 import axios from "axios";
-import { createSignerFromKeypair } from "@metaplex-foundation/umi";
-import { generateSigner, Umi, PublicKey } from "@metaplex-foundation/umi";
+import {
+  generateSigner,
+  Umi,
+  PublicKey,
+  createSignerFromKeypair,
+} from "@metaplex-foundation/umi";
 import { base58 } from "@metaplex-foundation/umi/serializers";
 import { PublicKey as SolanaPublicKey } from "@solana/web3.js";
 import { collectionAddress } from "@/lib/constants";
+
+async function getAuthSigner(): Promise<string> {
+  const response = await fetch("/api/collection-auth", {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to get auth signer public key");
+  }
+  const data = await response.json();
+  return data.key;
+}
 
 export const uploadJsonData = async (data: Object) => {
   const response = await fetch("/api", {
@@ -40,11 +55,10 @@ export const mintNft = async (
     const collection = await fetchCollection(umi, collectionAddress);
     const assetSigner = generateSigner(umi);
 
+    const authSigner = await getAuthSigner();
     const collectionAuthoritySigner = createSignerFromKeypair(
       umi,
-      umi.eddsa.createKeypairFromSecretKey(
-        base58.serialize(process.env.COLLECTION_AUTHORITY_SECRET_KEY!)
-      )
+      umi.eddsa.createKeypairFromSecretKey(base58.serialize(authSigner))
     );
 
     console.log("mintAddress:", assetSigner.publicKey.toString());
@@ -90,23 +104,18 @@ export const updateNft = async (
   try {
     const collection = await fetchCollection(umi, collectionAddress);
     const asset = await fetchAsset(umi, assetAddress);
+    const authSigner = await getAuthSigner();
     const collectionAuthoritySigner = createSignerFromKeypair(
       umi,
-      umi.eddsa.createKeypairFromSecretKey(
-        base58.serialize(process.env.COLLECTION_AUTHORITY_SECRET_KEY!)
-      )
+      umi.eddsa.createKeypairFromSecretKey(base58.serialize(authSigner))
     );
-
     const res = await update(umi, {
       asset: asset,
+      name: asset.name,
       collection: collection,
       uri: metadataUri,
       authority: collectionAuthoritySigner,
-    }).sendAndConfirm(umi, {
-      confirm: {
-        commitment: "confirmed",
-      },
-    });
+    }).sendAndConfirm(umi);
 
     return {
       signature: base58.deserialize(res.signature)[0],
