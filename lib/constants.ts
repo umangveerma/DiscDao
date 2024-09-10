@@ -12,10 +12,19 @@ export const PROPOSALS = [
   },
   {
     id: 2,
-    name: "Expand to New Regions",
+    name: "Launch Non-Fungible Dad Token (NFDT)",
     status: "Active",
     description:
-      "Proposal to expand the platform's services to new regions, increasing global accessibility and user base.",
+      "Proposal to mint unique tokens representing dad jokes.",
+    votes: 0,
+    approved: 0,
+  },
+  {
+    id: 3,
+    name: "Dad Joke Generator",
+    status: "Active",
+    description:
+      "Proposal to build an AI app that generates dad jokes about smart contracts and developers - Why don't programmers like nature? It has too many bugs!",
     votes: 0,
     approved: 0,
   },
