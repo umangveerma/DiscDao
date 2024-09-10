@@ -20,11 +20,15 @@ import toast from "react-hot-toast";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { umiInstance } from "@/lib/utils";
 import { useCanvas } from "@/hooks/useCanvas";
+import { Loader2 } from "lucide-react";
 import {
   createUser,
   updateUser,
   fetchNftsByOwner,
   hasUserVotedOnProposal,
+  getProposalApprovalPercentage,
+  getDaoVoterDetails,
+  VoterDetail,
 } from "@/lib/helpers";
 
 export function Vote() {
@@ -33,6 +37,12 @@ export function Vote() {
   const { setVisible } = useWalletModal();
   const [isConnecting, setIsConnecting] = useState(false);
   const [walletConnected, setWalletConnected] = useState(false);
+  const [proposalApprovals, setProposalApprovals] = useState<{
+    [key: string]: number;
+  }>({});
+  const [voterDetails, setVoterDetails] = useState<VoterDetail[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [votingProposalId, setVotingProposalId] = useState<number | null>(null);
 
   useEffect(() => {
     if (connected && isConnecting) {
@@ -42,6 +52,27 @@ export function Vote() {
       setIsConnecting(false);
     }
   }, [connected, publicKey, isConnecting]);
+
+  useEffect(() => {
+    async function fetchData() {
+      setIsLoading(true);
+      const approvals: { [key: number]: number } = {};
+      for (const proposal of PROPOSALS) {
+        approvals[proposal.id] = await getProposalApprovalPercentage(
+          umiInstance,
+          proposal.id.toString()
+        );
+      }
+      setProposalApprovals(approvals);
+
+      const voters = await getDaoVoterDetails(umiInstance);
+      setVoterDetails(voters);
+
+      setIsLoading(false);
+    }
+
+    fetchData();
+  }, []);
 
   const handleVote = async (vote: number, vote_value: string) => {
     if (!connected) {
@@ -56,11 +87,12 @@ export function Vote() {
       return;
     }
 
-    // if (!user) {
-    //   toast.error("DSCVR user not found.");
-    //   return;
-    // }
+    if (!user) {
+      toast.error("DSCVR user not found.");
+      return;
+    }
 
+    setVotingProposalId(vote);
     const umi = umiInstance.use(walletAdapterIdentity(wallet!.adapter));
 
     try {
@@ -71,12 +103,13 @@ export function Vote() {
       if (nfts.length === 0) {
         const mint = await createUser(
           umi,
-          "test", //  user.username,
+          user.username,
           proposalIndex,
           vote_value,
-          "https://ipfs.dscvr.one/b2801e07-5fcb-486b-8149-9ee1b66f840b-bucket/lzhif9rwapy4uirzya.png" //  user.avatar!
+          user.avatar!
         );
 
+        setVotingProposalId(null);
         console.log("vote casted successfully:", mint);
         toast.success("vote casted successfully!");
       } else {
@@ -84,6 +117,7 @@ export function Vote() {
 
         if (hasVoted) {
           toast.error("You have already voted on this proposal");
+          setVotingProposalId(null);
         } else {
           const signature = await updateUser(
             umi,
@@ -91,6 +125,8 @@ export function Vote() {
             proposalIndex,
             vote_value
           );
+
+          setVotingProposalId(null);
           console.log(
             "vote casted successfully! Transaction signature:",
             signature
@@ -103,6 +139,19 @@ export function Vote() {
       toast.error("Failed to cast vote.");
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 animate-spin mx-auto mb-4" />
+          <p className="text-lg font-medium">
+            Wait a moment, Loading proposals and voter data...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-8">
@@ -143,24 +192,40 @@ export function Vote() {
                 <CardFooter className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <ThumbsUpIcon className="w-5 h-5 text-green-500" />
-                    <span>{proposal.approved}% Approved</span>
+                    <span>
+                      {proposalApprovals[proposal.id].toFixed(2)}% Approved
+                    </span>
                   </div>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleVote(proposal.id, "yes")}
+                      disabled={votingProposalId === proposal.id}
                     >
-                      <ThumbsUpIcon className="w-5 h-5 mr-3 text-green-500" />{" "}
-                      Vote Yes
+                      {votingProposalId === proposal.id ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <ThumbsUpIcon className="w-5 h-5 mr-3 text-green-500" />
+                      )}
+                      {votingProposalId === proposal.id
+                        ? "Voting..."
+                        : "Vote Yes"}
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleVote(proposal.id, "no")}
+                      disabled={votingProposalId === proposal.id}
                     >
-                      <ThumbsDownIcon className="w-5 h-5 mr-3 text-red-500" />{" "}
-                      Vote No
+                      {votingProposalId === proposal.id ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <ThumbsDownIcon className="w-5 h-5 mr-3 text-red-500" />
+                      )}
+                      {votingProposalId === proposal.id
+                        ? "Voting..."
+                        : "Vote No"}
                     </Button>
                   </div>
                 </CardFooter>
@@ -170,70 +235,32 @@ export function Vote() {
         </TabsContent>
         <TabsContent value="voters" className="py-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            <Card>
-              <CardHeader className="flex items-center gap-4">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src="/placeholder-user.jpg" alt="@shadcn" />
-                    <AvatarFallback>JD</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <CardTitle className="text-base">John Doe</CardTitle>
-                    <p className="text-muted-foreground text-sm">
-                      Total Votes: 25 | Approval Rating: 92%
-                    </p>
+            {voterDetails.map((voter) => (
+              <Card key={voter.username}>
+                <CardHeader className="flex items-center gap-4">
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-10 w-10">
+                      {voter.image ? (
+                        <AvatarImage src={voter.image} alt={voter.username} />
+                      ) : (
+                        <AvatarFallback>
+                          {voter.username.substring(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                    <div>
+                      <CardTitle className="text-base">
+                        {voter.username}
+                      </CardTitle>
+                      <p className="text-muted-foreground text-sm">
+                        Total Votes: {voter.totalVotes} | Approval Rating:{" "}
+                        {voter.approvalRating?.toFixed(2)}%
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="flex items-center gap-4">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src="/placeholder-user.jpg" alt="@shadcn" />
-                    <AvatarFallback>JA</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <CardTitle className="text-base">Jane Appleseed</CardTitle>
-                    <p className="text-muted-foreground text-sm">
-                      Total Votes: 18 | Approval Rating: 88%
-                    </p>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="flex items-center gap-4">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src="/placeholder-user.jpg" alt="@shadcn" />
-                    <AvatarFallback>BO</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <CardTitle className="text-base">Bob Odenkirk</CardTitle>
-                    <p className="text-muted-foreground text-sm">
-                      Total Votes: 32 | Approval Rating: 85%
-                    </p>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="flex items-center gap-4">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src="/placeholder-user.jpg" alt="@shadcn" />
-                    <AvatarFallback>EW</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <CardTitle className="text-base">Emily Wilkins</CardTitle>
-                    <p className="text-muted-foreground text-sm">
-                      Total Votes: 19 | Approval Rating: 91%
-                    </p>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
+                </CardHeader>
+              </Card>
+            ))}
           </div>
         </TabsContent>
       </Tabs>

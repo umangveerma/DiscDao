@@ -7,6 +7,8 @@ import {
   fetchAssetsByCollection,
 } from "@metaplex-foundation/mpl-core";
 import axios from "axios";
+import { RateLimiter } from "limiter";
+import NodeCache from "node-cache";
 import {
   generateSigner,
   Umi,
@@ -17,15 +19,41 @@ import { base58 } from "@metaplex-foundation/umi/serializers";
 import { PublicKey as SolanaPublicKey } from "@solana/web3.js";
 import { collectionAddress } from "@/lib/constants";
 
-async function getAuthSigner(): Promise<string> {
-  const response = await fetch("/api/collection-auth", {
-    method: "POST",
-  });
-  if (!response.ok) {
-    throw new Error("Failed to get auth signer public key");
+const limiter = new RateLimiter({ tokensPerInterval: 5, interval: "second" });
+const cache = new NodeCache({ stdTTL: 60 }); // Cache for 60 seconds
+
+async function fetchAssetsWithRateLimit(
+  umi: Umi,
+  collectionAddress: PublicKey
+): Promise<AssetV1[]> {
+  const cacheKey = `assets-${collectionAddress.toString()}`;
+  const cachedAssets = cache.get<AssetV1[]>(cacheKey);
+
+  if (cachedAssets) {
+    return cachedAssets;
   }
-  const data = await response.json();
-  return data.key;
+
+  await limiter.removeTokens(1);
+  const assets = await fetchAssetsByCollection(umi, collectionAddress);
+  cache.set(cacheKey, assets);
+  return assets;
+}
+
+async function updateMetadata(
+  uri: string,
+  proposalIndex: string,
+  voteValue: string
+) {
+  const response = await axios.get(uri);
+  const metadata = response.data;
+
+  if (!metadata.attributes) {
+    metadata.attributes = [];
+  }
+
+  metadata.attributes.push({ [proposalIndex]: voteValue });
+
+  return metadata;
 }
 
 export const uploadJsonData = async (data: Object) => {
@@ -43,6 +71,53 @@ export const uploadJsonData = async (data: Object) => {
 
   const result = await response.json();
   return result.url;
+};
+
+async function getAuthSigner(): Promise<string> {
+  const response = await fetch("/api/collection-auth", {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to get auth signer public key");
+  }
+  const data = await response.json();
+  return data.key;
+}
+
+export const fetchNftsByOwner = async (umi: Umi, owner: SolanaPublicKey) => {
+  const assets = await fetchAssetsWithRateLimit(umi, collectionAddress);
+  const ownerAssets: AssetV1[] = [];
+
+  assets.forEach((asset) => {
+    if (asset.owner.toString() == owner.toString()) {
+      ownerAssets.push(asset);
+    }
+  });
+
+  return ownerAssets;
+};
+
+export const hasUserVotedOnProposal = async (
+  nfts: AssetV1[],
+  proposalIndex: string
+): Promise<boolean> => {
+  if (nfts.length === 0) return false;
+
+  const nft = nfts[0];
+  try {
+    const response = await axios.get(nft.uri);
+    const metadata = response.data;
+
+    if (metadata.attributes && Array.isArray(metadata.attributes)) {
+      return metadata.attributes.some((attr: any) =>
+        attr.hasOwnProperty(proposalIndex)
+      );
+    }
+  } catch (error) {
+    console.error("Error fetching NFT metadata:", error);
+  }
+
+  return false;
 };
 
 export const mintNft = async (
@@ -125,44 +200,6 @@ export const updateNft = async (
   }
 };
 
-export const fetchNftsHandler = async (
-  umi: Umi,
-  collectionAddress: PublicKey
-) => {
-  try {
-    const assets = await fetchAssetsByCollection(umi, collectionAddress);
-    assets.forEach(async (asset) => {
-      const res = await axios.get(asset.uri);
-      const data = res.data as {
-        name: string;
-        image: string;
-        attributes: [
-          {
-            latest_vote: string;
-          }
-        ];
-      };
-
-      console.log(data.attributes[0].latest_vote);
-    });
-  } catch (err: any) {
-    throw new Error(err);
-  }
-};
-
-export const fetchNftsByOwner = async (umi: Umi, owner: SolanaPublicKey) => {
-  const assets = await fetchAssetsByCollection(umi, collectionAddress);
-  const ownerAssets: AssetV1[] = [];
-
-  assets.forEach((asset) => {
-    if (asset.owner.toString() == owner.toString()) {
-      ownerAssets.push(asset);
-    }
-  });
-
-  return ownerAssets;
-};
-
 export const createUser = async (
   umi: Umi,
   username: string,
@@ -206,46 +243,6 @@ export const createUser = async (
   }
 };
 
-export const hasUserVotedOnProposal = async (
-  nfts: AssetV1[],
-  proposalIndex: string
-): Promise<boolean> => {
-  if (nfts.length === 0) return false;
-
-  const nft = nfts[0];
-  try {
-    const response = await axios.get(nft.uri);
-    const metadata = response.data;
-
-    if (metadata.attributes && Array.isArray(metadata.attributes)) {
-      return metadata.attributes.some((attr: any) =>
-        attr.hasOwnProperty(proposalIndex)
-      );
-    }
-  } catch (error) {
-    console.error("Error fetching NFT metadata:", error);
-  }
-
-  return false;
-};
-
-async function updateMetadata(
-  uri: string,
-  proposalIndex: string,
-  voteValue: string
-) {
-  const response = await axios.get(uri);
-  const metadata = response.data;
-
-  if (!metadata.attributes) {
-    metadata.attributes = [];
-  }
-
-  metadata.attributes.push({ [proposalIndex]: voteValue });
-
-  return metadata;
-}
-
 export const updateUser = async (
   umi: Umi,
   nft: AssetV1,
@@ -276,3 +273,78 @@ export const updateUser = async (
     throw new Error("Failed to update user");
   }
 };
+// Helper function for proposal approval percentage
+export async function getProposalApprovalPercentage(
+  umi: Umi,
+  proposalId: string
+): Promise<number> {
+  const assets = await fetchAssetsWithRateLimit(umi, collectionAddress);
+
+  let yesVotes = 0;
+  let totalVotes = 0;
+
+  for (const asset of assets) {
+    const response = await axios.get(asset.uri);
+    const metadata = response.data;
+    if (metadata && metadata.attributes) {
+      const proposalVote = metadata.attributes.find(
+        (attr: any) => proposalId in attr
+      );
+      if (proposalVote) {
+        totalVotes++;
+        if (proposalVote[proposalId] === "yes") {
+          yesVotes++;
+        }
+      }
+    }
+  }
+
+  return totalVotes > 0 ? (yesVotes / totalVotes) * 100 : 0;
+}
+
+export async function getDaoVoterDetails(umi: Umi): Promise<VoterDetail[]> {
+  const assets = await fetchAssetsWithRateLimit(umi, collectionAddress);
+
+  const voterMap = new Map<string, VoterDetail>();
+
+  for (const asset of assets) {
+    const owner = asset.owner.toString();
+    const response = await axios.get(asset.uri);
+    const metadata = response.data;
+
+    if (metadata) {
+      let voterDetail = voterMap.get(owner) || {
+        totalVotes: 0,
+        yesVotes: 0,
+        username: metadata.name || "Unknown",
+        image: metadata.image || undefined,
+      };
+
+      if (metadata.attributes) {
+        metadata.attributes.forEach((attr: any) => {
+          const proposalId = Object.keys(attr)[0];
+          voterDetail.totalVotes++;
+          if (attr[proposalId] === "yes") {
+            voterDetail.yesVotes++;
+          }
+        });
+      }
+
+      voterMap.set(owner, voterDetail);
+    }
+  }
+
+  return Array.from(voterMap.values()).map((detail) => ({
+    ...detail,
+    approvalRating:
+      detail.totalVotes > 0 ? (detail.yesVotes / detail.totalVotes) * 100 : 0,
+  }));
+}
+
+export interface VoterDetail {
+  username: string;
+  totalVotes: number;
+  yesVotes: number;
+  approvalRating?: number;
+  image?: string;
+}
