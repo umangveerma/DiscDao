@@ -87,10 +87,10 @@ export function Vote() {
       return;
     }
 
-    // if (!user) {
-    //   toast.error("DSCVR user not found.");
-    //   return;
-    // }
+    if (!user) {
+      toast.error("DSCVR user not found.");
+      return;
+    }
 
     setVotingProposalId(vote);
     const umi = umiInstance.use(walletAdapterIdentity(wallet!.adapter));
