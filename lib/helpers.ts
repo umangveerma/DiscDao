@@ -20,7 +20,7 @@ import { PublicKey as SolanaPublicKey } from "@solana/web3.js";
 import { collectionAddress } from "@/lib/constants";
 
 const limiter = new RateLimiter({ tokensPerInterval: 5, interval: "second" });
-const cache = new NodeCache({ stdTTL: 60 }); // Cache for 60 seconds
+const cache = new NodeCache({ stdTTL: 5 }); // Cache for 60 seconds
 
 async function fetchAssetsWithRateLimit(
   umi: Umi,

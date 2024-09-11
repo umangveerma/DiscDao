@@ -53,8 +53,9 @@ export function Vote() {
   }, [connected, publicKey, isConnecting]);
 
   useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
     async function fetchData() {
-      setIsLoading(true);
       const approvals: { [key: number]: number } = {};
       for (const proposal of PROPOSALS) {
         approvals[proposal.id] = await getProposalApprovalPercentage(
@@ -70,7 +71,11 @@ export function Vote() {
       setIsLoading(false);
     }
 
+    setIsLoading(true);
     fetchData();
+
+    intervalId = setInterval(fetchData, 5000);
+    return () => clearInterval(intervalId);
   }, []);
 
   const handleVote = async (vote: number, vote_value: string) => {
