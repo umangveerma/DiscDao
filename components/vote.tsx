@@ -13,7 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PROPOSALS } from "@/lib/constants";
-import UserInfo from "@/components/UserInfo";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { walletAdapterIdentity } from "@metaplex-foundation/umi-signer-wallet-adapters";
 import toast from "react-hot-toast";
@@ -263,7 +262,6 @@ export function Vote() {
           </div>
         </TabsContent>
       </Tabs>
-      <UserInfo />
     </div>
   );
 }
